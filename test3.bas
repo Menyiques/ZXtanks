@@ -1,16 +1,23 @@
 #include "tank_libraries.bas"
+
 border 0
-paper 0 
+paper 0
 cls
-notes()
+for x=0 to 23
+for y=0 to 23
+printudg(x,y,9)
+next y
+next x
+
+'notes()
 a=peek(23672)
-cls
+
 dim escx,escy as ubyte
 
 dim tankf(4,3)as float: ' x,y,speed son float
 dim tankdir(4)as ubyte: ' dirección (0 norte, 1 este, 2 sur, 3 oeste, 4 nada)
-dim shootf(4,3)as float: ' x,y,speed
-dim shootdir(4)={4,4,4,4,4}
+dim shootf(10,3)as float: ' x,y,speed
+dim shootdir(10)={4,4,4,4,4,4,4,4,4,4,4}
 dim despx, despy as float
 dim explosion(4,6): ' x,y,estado(04)
 dim lastkey as ubyte
@@ -22,38 +29,46 @@ tankf(0,0)=3
 tankf(0,1)=3
 tankf(0,2)=0.8
 tankf(0,3)=0:'tanke jugador
-
-
-
-tankf(1,0)=3: ' x
-tankf(1,1)=5: ' y
-tankf(1,2)=0.4: ' speed
-tankf(1,3)=1:'t1
-tankdir(1)=1: ' direccion
-
-tankf(2,0)=21: ' x
-tankf(2,1)=18: ' y
-tankf(2,2)=0.8: ' speed
-tankf(2,3)=2:'t2
-tankdir(2)=2: ' direccion
-
-tankf(3,0)=21: ' x
-tankf(3,1)=16: ' y
-tankf(3,2)=0.6: ' speed
-tankf(3,3)=3:'t3
-tankdir(3)=3: ' direccion
-
-tankf(4,0)=21: ' x
-tankf(4,1)=14: ' y
-tankf(4,2)=0.9: ' speed
-tankf(4,3)=4: 't4
-tankdir(4)=0: ' direccion
+tankdir(1)=4:tankdir(2)=4:tankdir(3)=4:tankdir(4)=4
 
 
 
 mainloop:
 
+for n=1 to 4
 
+'disparos de los enenmigos*********************************************
+
+if tankdir(n)<4 and rnd*50>48
+		dim s as ubyte
+		s=255
+		do  :'busca el primer disparo libre
+			s=s+1
+		loop until shootdir(s)=4
+	 
+		if shootdir(s)=4 
+			shootdir(s)=tankdir(n): ' direccion
+			shootf(s,0)=tankf(n,0)
+			shootf(s,1)=tankf(n,1)
+			shootf(s,2)=1.0: ' bullet speed 
+			beep .1,30
+			n=4
+		end if
+	
+end if
+
+'Crea nuevos tanques**************************************************
+
+if tankdir(n)=4 and rnd*100>90
+	tankf(n,3)=int(rnd*4)+1
+	tankf(n,2)=1-((4-tankf(n,3))*2/10)
+	tankf(n,0)=21: ' x
+	tankf(n,1)=14: ' y
+	tankdir(n)=0: ' direccion
+end if
+	
+
+next n
 '*********************************************
 ' gestiona disparos
 ' shootf(,0)=x del disparo
@@ -111,7 +126,7 @@ if shootdir(n)<4
 			pon (shootf(n,0)+1,shootf(n,1),0)
 			p2=0
 			shootdir(n)=4
-		else if p1>1 or p2>1
+		else if solido(p2) or solido(p1)
 			shootdir(n)=4	
 		end if
 	else if shootdir(n)=1	
@@ -123,7 +138,7 @@ if shootdir(n)<4
 			p4=0
 			pon (shootf(n,0)+1,shootf(n,1)+1,0)
 			shootdir(n)=4
-		else if p4>1 or p2>1
+		else if solido(p4) or solido(p2)
 			shootdir(n)=4	
 		end if
 	else if shootdir(n)=2
@@ -135,7 +150,7 @@ if shootdir(n)<4
 			p4=0
 			pon (shootf(n,0)+1,shootf(n,1)+1,0)
 			shootdir(n)=4
-		else if p4>1 or p3>1
+		else if solido(p4) or solido(p3)
 			shootdir(n)=4	
 		end if
 	else if shootdir(n)=3	
@@ -147,16 +162,15 @@ if shootdir(n)<4
 			p3=0
 			pon (shootf(n,0),shootf(n,1)+1,0)
 			shootdir(n)=4
-		else if p1>1 or p3>1
+		else if solido(p1) or solido(p3)
 			shootdir(n)=4
 		end if
 	end if
 
 		
-
-
 	if shootdir(n)<4
 		drawtile(shootf(n,0),shootf(n,1),shootdir(n),6)
+
 	else 
 		' explosión
 		explosion(0,0)=shootf(n,0)
@@ -173,7 +187,6 @@ if shootdir(n)<4
 
 				end if 
 			next z
-
 		end if 
 
 
@@ -189,8 +202,6 @@ if shootdir(n)<4
 		explosion(0,6)=p4
 		beep .1,-20
 	end if
-
-
 
 end if
 
@@ -264,20 +275,20 @@ next n
 
 readkeyboard()
 
-' Desplazamiento de pantalla
+' Desplazamiento de pantalla ************************************************************
 
 if tankf(0,0)<9
 	escx=0
-else if tankf(0,0)>16
-	escx=6
+else if tankf(0,0)>21
+	escx=12
 else 
 	escx=tankf(0,0)-9
 end if
 
 if tankf(0,1)<9
 	escy=0
-else if tankf(0,1)>16
-	escy=6
+else if tankf(0,1)>21
+	escy=12
 else 
 	escy=tankf(0,1)-9
 end if
@@ -329,12 +340,19 @@ end if
 
 ' sólo si no hay otro disparo en marcha y pulsa espacio
 
-if lastkey=32 and shootdir(0)=4 
-	shootdir(0)=tankdir(0): ' direccion
-	shootf(0,0)=tankf(0,0)
-	shootf(0,1)=tankf(0,1)
-	shootf(0,2)=1.0: ' bullet speed 
-	beep .1,30
+if lastkey=32 
+	n=0
+	do until n>4 
+		if shootdir(n)=4 
+			shootdir(n)=tankdir(0): ' direccion
+			shootf(n,0)=tankf(0,0)
+			shootf(n,1)=tankf(0,1)
+			shootf(n,2)=1.0: ' bullet speed 
+			beep .1,30
+			n=4
+		end if
+	n=n+1	
+	loop
 end if
 
 
@@ -343,11 +361,10 @@ end if
 ' ***********************************************
 poke $7c08,escy: ' y
 poke $7c09,escx: ' x
-a=peek(23672)
 readkeyboard()
 pintaescenario()
 pintabuffer()
-print at 0,0; peek(23672)-a;"  "
+print at 0,0; ink 7; peek(23672)-a;"  "
 a=peek(23672)
 readkeyboard()
 ' ***********************************************
@@ -392,6 +409,12 @@ sub readkeyboard()
 	lastkey=code(inkey$())
 end sub
 
+sub printudg(x as byte,y as byte,u as byte)
+	addr=cast(uinteger,u)*9+@udg
+	poke uinteger 23675,addr
+	print at y,x;"\A"
+	poke 22528+cast(uinteger,y)*32+x,peek(addr+8)
+end sub
 
 
 
