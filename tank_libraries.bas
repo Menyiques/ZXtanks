@@ -1,26 +1,174 @@
-
-function empty(x as ubyte,y as ubyte) as ubyte
-	dim emptyreturn,xx1,xx2,yy1,yy2 as ubyte
-	emptyreturn = 0
-	xx1=peek(@mapa+cast(uinteger,32)*y+x)
-	xx2=peek(@mapa+cast(uinteger,32)*y+x+1)
-	yy1=peek(@mapa+cast(uinteger,32)*(y+1)+x)
-	yy2=peek(@mapa+cast(uinteger,32)*(y+1)+x+1)
-	if xx1=0 and xx2=0 and yy1=0 and yy2=0
-		emptyreturn=1
-	end if 
-	return emptyreturn
+function kempston() as ubyte
+	dim k as ubyte
+	k=in 31
+	if k>31
+		k=0
+	end if
+	return k
 end function
 
-function solido(c as ubyte) as ubyte
-dim s as ubyte
-s=0
-if c>1 and c<90
-	s=1
+function format5(number as uinteger) as string
+dim s as string
+dim l as ubyte
+	s="00000"+str(number)
+	l=len(s)
+	s=s(l-5)+s(l-4)+s(l-3)+s(l-2)+s(l-1)
+	return s
+end function
+
+sub pause0()
+	wait (100)
+pause0l:
+	if inkey$()="" then goto pause0l
+	border 0
+end sub
+
+
+
+sub pintatanques()
+for n=0 to 4
+
+    if tanks(n,0)>0 and tanks(n,0)<6 
+       	plot over 1;paper 6;ink 0;(tanks(n,1)/8)+208,150-(tanks(n,2)/8)
+    	drawtile(tanks(n,1)/8,tanks(n,2)/8,n)
+    	ex=tanks(n,1)/8-escx+2
+		ey=tanks(n,2)/8-escy+2
+		eudg=(tanks(n,0)-1)*4+tanks(n,3)+7
+    	printUDG4(ex,ey,eudg,$e5)
+    end if
+next n
+end sub
+
+
+function bigchr(cod as ubyte) as string
+	dim cchr as ubyte
+	cchr=59
+	if cod>96
+		cchr=cod-32
+	end if
+	return chr(cchr)
+end function
+
+
+function rumbo(t as ubyte) as ubyte
+dim px, py, r as integer
+dim obx,oby as integer
+
+if t=2 or t=3 
+	obx=15*8
+	oby=31*8
+else
+	obx=tanks(0,1)
+	oby=tanks(0,2)
 end if
-return s
+px=obx-tanks(t,1)
+py=oby-tanks(t,2)
+if px>=0 and py<0
+	if abs(px)>=abs(py)
+		r=1
+	else
+		r=0
+	end if
+else if px<=0 and py<0
+	if abs(px)>=abs(py)
+		r=3
+	else
+		r=0
+	end if
+else if px<=0 and py>0
+	if abs(px)>=abs(py)
+		r=3
+	else
+		r=2
+	end if
+else if px>=0 and py>0
+	if abs(px)>=abs(py)
+		r=1
+	else
+		r=2
+	end If 
+End If
+return r
 end function
 
+function firstfreetank() as ubyte
+
+	dim z as ubyte
+	z=1
+floop2:
+	if tanks(z,0)=0
+		return z
+	end if
+	z=z+1
+	if z=maxtanks+1
+		return 255
+	end if
+	goto floop2
+	return 0
+end function
+
+function firstfreeshoot() as ubyte
+
+	dim z as ubyte
+	z=0
+floop:
+	if shoots(z,0)=0 
+		return z
+	end if
+	z=z+1
+	if z=maxshoots
+		return 255
+	end if
+	goto floop
+	return 0
+end function
+
+function firstfreeefect() as ubyte
+	dim z as ubyte
+	z=0
+eloop:
+	if efecto(z,2)=0 
+		return z
+	end if
+	z=z+1
+	if z=maxefectos
+		return 255
+	end if
+	goto eloop
+	return 0
+end function
+
+sub fastcall deleteminimap()
+asm
+ld hl,16570
+call linea
+ld hl,16570+32
+call linea
+ld hl,16570+64
+call linea
+ld hl,18458
+call linea
+ret
+
+linea:
+	xor a
+	ld b,8
+loopminim:
+	ld (hl),a
+	inc hl
+	ld (hl),a
+	inc hl
+	ld (hl),a
+	inc hl
+	ld (hl),a
+	dec hl
+	dec hl
+	dec hl
+	inc h
+	djnz loopminim
+ret
+end asm
+end sub
 
 function quehay(x as ubyte, y as ubyte) as ubyte
 	return peek(@mapa+cast(uinteger,32)*cast(uinteger,y)+cast(uinteger,x))
@@ -30,1487 +178,685 @@ sub pon(x as ubyte, y as ubyte, ch as ubyte)
 	poke @mapa+cast(uinteger,32)*cast(uinteger,y)+cast(uinteger,x), ch
 end sub
 
-function fastcall pintaescenario()
-poke uinteger $7c00,@mapa
-poke uinteger $7c02,@udg
-rem $7c08 es y
-rem $7c09 es x
+sub fastcall pushMapa()
+	poke uinteger $7c00,@mapa
+	poke uinteger $7c02,@mapa2
+	asm
+		ld hl,($7c00)
+		ld de,($7c02)
+		ld bc, 1024
+		ldir
+		ret
+	end asm
+end sub
 
+sub fastcall popMapa()
+	poke uinteger $7c00,@mapa
+	poke uinteger $7c02,@mapa2
+	asm
+		ld hl,($7c02)
+		ld de,($7c00)
+		ld bc, 1024
+		ldir
+		ret
+	end asm
+end sub
+
+sub drawtile(x as ubyte, y as ubyte, tankIndex as ubyte)
+	dim addr, addr2, addrtile as uinteger
+	addr=@mapa+cast(uinteger,32)*(y)+x
+	addr2=@mapa+cast(uinteger,32)*(y+1)+x
+	addrtile=tankIndex+20
+	poke addr,addrtile
+	poke addr+1,addrtile
+	poke addr2,addrtile
+	poke addr2+1,addrtile
+end sub
+
+sub deletetile(x as ubyte, y as ubyte)
+	dim addr, addr1 as uinteger
+	addr=@mapa+cast(uinteger,32)*(y)
+	addr1=@mapa+cast(uinteger,32)*(y+1)
+	poke addr+x,0
+	poke addr+x+1,0
+	poke addr1+x,0
+	poke addr1+x+1,0
+end sub
+
+sub bigstring(s as string,x as ubyte,y as ubyte, attr1 as ubyte, attr2 as ubyte)
+	for bgs=0 to len(s)-1
+		bigchar(s(bgs),x+bgs,y,attr1,attr2)
+	next bgs
+end sub
+
+sub gameover(reason as ubyte)
+	sound(6)
+	fadeout()
+	cls
+	if reason=0
+		bigstring("YOU:HAVE:NO:MORE:TANKS",5,8,4,6)
+	else
+		bigstring("YOUR:BASE:WAS:DESTROYED",5,8,4,6)
+	end if
+	bigstring("THE:GAME:IS:OVER",8,10,4,6)
+	pause0
+	wait(10)
+	cls
+	bigstring("WELL:DONE",11,9,4,6)
+	bigstring("YOU:SCORED:"+format5(points),7,11,4,6)
+	bigstring("SURE:YOU:CAN:DO:IT:BETTER",3,13,4,6)
+	pause0
+end sub
+
+sub readkeyboard()
+	lastkey=code(inkey$())
+end sub
+
+sub readkeyboardwait()
+	wait(10)
+	do
+	lastkey=code(inkey$())
+	loop until lastkey>96 or lastkey=32
+	sound(2)
+end sub
+
+
+
+sub printUDG4(ex as ubyte,ey as ubyte,eudg as uinteger,addr as ubyte)
+	if ex<22 and ey<22 and ex>0 and ey>0 then tileFast(ex,ey,@graficos+eudg*32,addr)
+end sub
+
+sub wait(tstates as uinteger)
+dim a,b as uinteger
+a=peek 23672+peek 23673*256
+do
+	b=peek 23672+peek 23673*256
+loop until (b-a>tstates)
+end sub
+
+
+sub emptyp1p2(x as ubyte,y as ubyte,dir as ubyte)
+	p1p2(x,y,dir)
+	if p1=0 and p2=0
+		emptyp= 1
+	else 
+		emptyp= 0
+	end if
+end sub
+
+sub newtankxy(d as ubyte)
+	dim ok as ubyte=0
+	do
+		dim r as ubyte =int(rnd*9)
+		if quehay(startingposxy(r,0),startingposxy(r,1))=0
+			tanks(d,1)=startingposxy(r,0)*8
+			tanks(d,2)=startingposxy(r,1)*8
+			ok=1
+		end if
+	loop until ok=1
+end sub
+
+
+sub p1p2(x as ubyte, y as ubyte, dir as ubyte)
+
+	if dir=0
+		p1=quehay(x,y):dx1=0:dy1=0
+		p2=quehay(x+1,y):dx2=1:dy2=0
+	else if dir=2
+		p1=quehay(x,y+1):dx1=0:dy1=1
+		p2=quehay(x+1,y+1):dx2=1:dy2=1
+	else if dir=1
+		p1=quehay(x+1,y):dx1=1:dy1=0
+		p2=quehay(x+1,y+1):dx2=1:dy2=1
+	else if dir=3
+		p1=quehay(x,y):dx1=0:dy1=0
+		p2=quehay(x,y+1):dx2=0:dy2=1	
+	end if
+	
+	if (p1>p2) 
+		p3=p1:dx3=dx1:dy3=dy1
+	else
+		p3=p2:dx3=dx2:dy3=dy2
+	end if
+
+end sub
+
+
+
+
+
+sub bigchar(s as string,x as ubyte,y as ubyte,attr1 as ubyte, attr2 as ubyte)
+	poke 22528+cast(uinteger,y)*32+x,attr1
+	poke 22528+(cast(uinteger,y)+1)*32+x,attr2
+
+	dim c as uinteger
+	c=code(s)
+	if c>=48 and c<60
+		c=c-48
+	else 
+		c=c-53
+	end if
+	poke uinteger $7c08, @fonts+(c*16)
+	poke $7c0a,x
+	poke $7c0b,y
+	asm
+		ld de,($7c08)
+		ld a,($7c0a)
+		ld c,a
+		ld a,($7c0b)
+		ld b,a
+		call dflocb
+		push bc
+		ld b,8
+	loopf:
+		ld a,(de)
+		ld (hl),a
+		inc de
+		inc h
+		djnz loopf
+		pop bc
+		inc b
+		call dflocb
+		ld b,8
+	loopf2:
+		ld a,(de)
+		ld (hl),a
+		inc de
+		inc h
+		djnz loopf2
+		jr finbb
+	dflocb:
+		ld a,b
+		and $f8
+		add a,$40 
+		ld h,a
+		ld a,b
+		and 7
+		rrca
+		rrca
+		rrca
+		add a,c
+		ld l,a
+		ret
+	finbb:
+	end asm 
+end sub
+
+
+sub tileFast(x as ubyte, y as ubyte, addr as uinteger,mem as ubyte)
+poke $7c08,y
+poke $7c09,x
+poke uinteger $7c0a,addr
+poke $7c0c,mem
 asm
-	di
-	push ix 
-	push iy
-	ld ixh, 0; Y = ixh = filas
-	ld ixl,0 ; X = ixl = colum
-	
-	;iy tiene la addr del mapa
-
-	ld iy,($7c00)
-
-	ld bc,32
-
-	ld a,($7c08)
-	add a,ixh
-	or a
-	jr z,l4
-l1:
-	add iy,bc
-	dec a
-	cp 0
-	jr nz, l1
-l4:	
-	;Sumar a iy, ixl
-
-	ld b,0
-	ld a,($7c09)
-	add a,ixl
-	ld c,a
-	add iy,bc
-	
-	;iy tiene la addr del chr
-
-fil:
-	ld ixl,0
-	call attloc
-	push hl
-	call dfloc
-	push hl
-
-
-col:
-	
-	ld a,(iy+0)
-	; en a tengo el tipo de chr
-	
-	ld de,($7c02)
-	or a
-	jr z,l5; si a es cero no sumes nada
-
-	ex de,hl; hl guardado en de
-	ld bc,9
-l2:
-	add hl,bc
-	dec a
-	jr nz, l2
-	ex de, hl
-l5:
-	
-	;en de tengo el ppio del bitmap del char
-	call pintachar
-	pop bc
-	pop hl
-	ld a,(de)
-	ld (hl),a
+	ld hl,$7c08
+	ld b,(hl)
 	inc hl
-	push hl
+	ld c,(hl)
+	inc hl
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
 	push bc
-
-
-l6:
-	pop hl
-	inc hl
-	push hl
-
-	inc iy; next chr on map
-
-	inc ixl
-	ld a,20
-	cp ixl
-	jr nz, col
-
-	pop hl
-	pop hl
-
-	ld bc,12
-	add iy,bc
-
-	inc ixh
-	cp ixh
-	jr nz, fil	
-
-	jp endd
-
-
-
-
-pintachar: 
-;	de=addr udg
-;	hl=addr pantalla
+	call dfloct
 	ld b,8
-loop:
-	;296 tstates 
+
+loopt:
 	ld a,(de)
+	or (hl)
 	ld (hl),a
+	inc hl
+	inc de
+	
+	ld a,(de)
+	or (hl)
+	ld (hl),a
+	dec hl
 	inc h
 	inc de
-	djnz loop
-	ret
-
-attloc:	
-	inc ixh
-	inc ixl
-	inc ixh
-	inc ixl
-	ld a,ixh
-	sra a
-	sra a
-	sra a
-	add a,$e8;58 
+	djnz loopt
+	pop bc
+	inc b
+	call dfloct
+	ld b,8
+loop2t:
+	ld a,(de)
+	or (hl)
+	ld (hl),a
+	inc hl
+	inc de
+	ld a,(de)
+	or (hl)
+	ld (hl),a
+	dec hl
+	inc h
+	inc de
+	djnz loop2t
+	jp fint
+dfloct:
+	ld a,b
+	and $f8
+	ld hl,$7c0c
+	add a,(hl);$e5
 	ld h,a
-	ld a,ixh
+	ld a,b
 	and 7
 	rrca
 	rrca
 	rrca
-	add a,ixl
+	add a,c
 	ld l,a
-	dec ixh
-	dec ixl
-	dec ixh
-	dec ixl
 	ret
+fint:
+end asm
+end sub
+
+sub  pintaescenario(addr as uinteger)
+poke uinteger $7c00,addr
+poke uinteger $7c02,@udg
+'poke $7c08,y
+'poke $7c09,x
+
+asm
+di
+push ix 
+push iy
+ld ixh, 0; Y = ixh = filas
+ld ixl,0 ; X = ixl = colum
+
+;iy tiene la addr del mapa
+
+ld iy,($7c00)
+
+ld bc,32
+
+ld a,($7c08)
+add a,ixh
+or a
+jr z,l4
+l1:
+add iy,bc
+dec a
+cp 0
+jr nz, l1
+l4:
+;Sumar a iy, ixl
+
+ld b,0
+ld a,($7c09)
+add a,ixl
+ld c,a
+add iy,bc
+
+;iy tiene la addr del chr
+
+fil:
+ld ixl,0
+call attloc
+push hl
+call dfloc
+push hl
+
+col:
+ld a,(iy+0)
+; en a tengo el tipo de chr
+
+cp 18
+jr c, nobigger
+ld a,0
+nobigger:
+
+ld de,($7c02)
+or a
+jr z,l5; si a es cero no sumes nada
+
+ex de,hl; hl guardado en de
+ld bc,9
+l2:
+add hl,bc
+dec a
+jr nz, l2
+ex de, hl
+l5:
+;en de tengo el ppio del bitmap del char
+call pintachar
+pop bc
+pop hl
+ld a,(de)
+ld (hl),a
+inc hl
+push hl
+push bc
+
+l6:
+pop hl
+inc hl
+push hl
+inc iy; next chr on map
+inc ixl
+ld a,20
+cp ixl
+jr nz, col
+
+pop hl
+pop hl
+
+ld bc,12
+add iy,bc
+
+inc ixh
+cp ixh
+jr nz, fil
+jp endd
+
+pintachar: 
+;de=addr udg
+;hl=addr pantalla
+ld b,8
+loop:
+;296 tstates 
+ld a,(de)
+ld (hl),a
+inc h
+inc de
+djnz loop
+ret
+
+
+attloc:
+inc ixh
+inc ixl
+inc ixh
+inc ixl
+ld a,ixh
+sra a
+sra a
+sra a
+add a,$fd;58 
+ld h,a
+ld a,ixh
+and 7
+rrca
+rrca
+rrca
+add a,ixl
+ld l,a
+dec ixh
+dec ixl
+dec ixh
+dec ixl
+ret
 
 ; col=ixl filas=ixh
 dfloc:  
-	inc ixh
-	inc ixl
-	inc ixh
-	inc ixl
-	ld a,ixh
-	and $f8
-	add a,$d0;40 
-	ld h,a
-	ld a,ixh
-	and 7
-	rrca
-	rrca
-	rrca
-	add a,ixl
-	ld l,a
-	dec ixh
-	dec ixl
-	dec ixh
-	dec ixl
-	ret	
+inc ixh
+inc ixl
+inc ixh
+inc ixl
+ld a,ixh
+and $f8
+add a,$e5;40 
+ld h,a
+ld a,ixh
+and 7
+rrca
+rrca
+rrca
+add a,ixl
+ld l,a
+dec ixh
+dec ixl
+dec ixh
+dec ixl
+ret
 endd:
 pop iy
 pop ix
 ei
 end asm
-end function
+end sub
 
 
-
-
-function fastcall mapa()
+sub fastcall mapa()
 asm
-defb 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
-defb 81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8
+defb 5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6
+defb 7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8
 defb 5,6,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,5,6
 defb 7,8,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,7,8
 defb 5,6,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,6
-defb 7,8,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,7,8
+defb 7,8,3,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,3,7,8
 defb 5,6,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,5,6
-defb 7,8,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,7,8
+defb 7,8,3,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,3,7,8
 defb 5,6,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,5,6
-defb 7,8,3,0,0,1,1,0,0,1,1,0,0,1,1,4,4,1,1,0,0,1,1,0,0,1,1,0,0,3,7,8
+defb 7,8,3,0,0,2,1,0,0,2,1,0,0,2,1,4,4,2,1,0,0,2,1,0,0,2,1,0,0,3,7,8
 defb 5,6,3,0,0,1,1,0,0,1,1,0,0,1,1,4,4,1,1,0,0,1,1,0,0,1,1,0,0,3,5,6
-defb 7,8,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,7,8
+defb 7,8,3,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,3,7,8
 defb 5,6,3,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,3,5,6
-defb 7,8,3,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,3,7,8
+defb 7,8,3,0,0,2,1,0,0,2,1,0,0,0,0,0,0,0,0,0,0,2,1,0,0,2,1,0,0,3,7,8
 defb 5,6,3,0,0,0,0,0,0,0,0,0,0,4,4,0,0,4,4,0,0,0,0,0,0,0,0,0,0,3,5,6
 defb 7,8,3,0,0,0,0,0,0,0,0,0,0,4,4,0,0,4,4,0,0,0,0,0,0,0,0,0,0,3,7,8
-defb 5,6,3,1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,3,5,6
+defb 5,6,3,2,1,0,0,2,1,2,1,0,0,0,0,0,0,0,0,0,0,2,1,2,1,0,0,2,1,3,5,6
 defb 7,8,3,4,4,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,4,4,3,7,8
-defb 5,6,3,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,3,5,6
-defb 7,8,3,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,3,7,8
-defb 5,6,3,0,0,1,1,0,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,0,0,1,1,0,0,3,5,6
+defb 5,6,3,0,0,0,0,0,0,0,0,0,0,2,1,0,0,2,1,0,0,0,0,0,0,0,0,0,0,3,5,6
+defb 7,8,3,0,0,0,0,0,0,0,0,0,0,1,1,2,1,1,1,0,0,0,0,0,0,0,0,0,0,3,7,8
+defb 5,6,3,0,0,2,1,0,0,2,1,0,0,2,1,1,1,2,1,0,0,2,1,0,0,2,1,0,0,3,5,6
 defb 7,8,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,7,8
-defb 5,6,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,5,6
+defb 5,6,3,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,2,1,0,0,3,5,6
 defb 7,8,3,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,3,7,8
-defb 5,6,3,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,3,5,6
+defb 5,6,3,0,0,2,1,0,0,2,1,0,0,0,0,0,0,0,0,0,0,2,1,0,0,2,1,0,0,3,5,6
 defb 7,8,3,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,3,7,8
-defb 5,6,3,0,0,1,1,0,0,1,1,0,0,0,1,1,1,1,0,0,0,1,1,0,0,1,1,0,0,3,5,6
-defb 7,8,3,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,3,7,8
-defb 5,6,3,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,3,5,6
+defb 5,6,3,0,0,1,1,0,0,1,1,0,0,0,1,1,1,1,0,0,0,2,1,0,0,2,1,0,0,3,5,6
+defb 7,8,3,0,0,0,0,0,0,0,0,0,0,0,1,9,10,1,0,0,0,0,0,0,0,0,0,0,0,3,7,8
+defb 5,6,3,0,0,0,0,0,0,0,0,0,0,0,1,11,12,1,0,0,0,0,0,0,0,0,0,0,0,3,5,6
 defb 7,8,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,7,8
 defb 5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6,5,6
 defb 7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8
-
 end asm
-end function
+end sub
 
-function fastcall udg()
+
+sub fastcall mapa2()
 asm
-;defb 0,0,0,0,32,0,2,0,00110000b
-defb 0,0,0,0,0,0,0,0,00110000b
-defb 11111111b,01000000b,01000000b,01000000b,11111111b,00000010b,00000010b,00000010b,00010000b
-defb 126,129,131,129,131,129,171,126,00100000b
-defb 00000001b,01000101b,00000001b,00000001b,00000001b,01000101b,00000001b,11111111b,00111000b
-defb 01111110b,10000001b,10000001b,10000001b,10000001b,10000001b,10000001b,01111110b,00100000b
-defb 10001100b,00000111b,00011000b,00100000b,01000000b,11000000b,01100000b,01010000b,01100000b
-defb 00001000b,10001000b,11110000b,01110000b,00101101b,00110110b,00101000b,00101100b,00100000b
-defb 00101010b,00011111b,00000111b,00000110b,00001011b,01110000b,10001100b,00001000b,00100000b
-defb 01101000b,11001100b,10001010b,00000101b,11100011b,00010000b,00001001b,00001010b,00100000b
-defb 130,68,40,16,40,68,130,1,00000101b
+defb 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3
+defb 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+end asm
+end sub
+
+sub fastcall udg()
+asm
+defb 0,0,0,0,0,0,0,0,00110000b; (0)=suelo
+defb 16,85,178,255,1,85,43,255,00010000b; (1)=ladrillo brillo 0
+defb 16,85,178,255,1,85,43,255,01010000b; (2)=ladrillo brillo 1
+defb 00000001b,01000101b,00000001b,00000001b,00000001b,01000101b,00000001b,11111111b,00111000b; (3)=borde ext
+defb 1,43,87,43,87,43,127,255,00101000b; (4)=duro interior
+defb 10001100b,00000111b,00011000b,00100000b,01000000b,11000000b,01100000b,01010000b,01100000b;(5)=arbol 1
+defb 00001000b,10001000b,11110000b,01110000b,00101101b,00110110b,00101000b,00101100b,00100000b;(6)=arbol 2
+defb 00101010b,00011111b,00000111b,00000110b,00001011b,01110000b,10001100b,00001000b,00100000b;(7)=arbol 3
+defb 01101000b,11001100b,10001010b,00000101b,11100011b,00010000b,00001001b,00001010b,00100000b;(8)=arbol 4
+defb 128,97,19,235,27,127,15,63,00110000b; (9)=aguila1
+defb 3,12,208,174,176,252,224,252,00110000b; (10)=aguila 2
+defb 15,31,31,59,195,69,10,0,00110000b; (11)=aguila 3
+defb 224,240,240,184,134,68,160,0,00110000b; (12)=aguila 4
+defb 130,68,40,16,40,68,130,1,00000101b; (13)=
+defb 0,0,0,0,0,0,0,0,0
+defb 0,0,0,0,0,0,0,0,0
+end asm
+end sub
+
+
+sub fastcall fonts
+asm 
+defb 0,0,60,102,195,195,195,219,219,195,195,195,102,60,0,0; 0
+defb 0,0,24,56,120,24,24,24,24,24,24,24,24,126,0,0
+defb 0,0,126,195,3,6,12,24,48,96,192,192,195,255,0,0
+defb 0,0,126,195,3,3,14,3,3,3,3,3,195,126,0,0
+defb 0,0,6,14,30,54,102,198,255,6,6,6,6,15,0,0
+defb 0,0,255,192,192,192,192,254,3,3,3,3,195,126,0,0
+defb 0,0,56,96,192,192,254,195,195,195,195,195,195,126,0,0
+defb 0,0,255,195,3,3,3,6,12,24,48,48,48,48,0,0
+defb 0,0,126,195,195,195,195,126,195,195,195,195,195,126,0,0
+defb 0,0,126,195,195,195,195,127,3,3,3,3,6,124,0,0
+defb 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0; SPACE
+defb 0,0,62,65,0,54,69,37,22,20,100,1,65,62,0,0
+
+defb 0,0,16,56,108,198,198,198,254,198,198,198,198,198,0,0; A
+defb 0,0,252,102,102,102,100,126,102,102,102,102,102,252,0,0
+defb 0,0,60,102,194,192,192,192,192,192,192,194,102,60,0,0
+defb 0,0,248,108,102,102,102,102,102,102,102,102,108,252,0,0
+defb 0,0,254,102,98,96,104,120,104,96,96,98,102,254,0,0
+defb 0,0,254,102,98,96,104,120,104,96,96,96,96,240,0,0
+defb 0,0,60,102,194,192,192,192,222,198,198,198,102,58,0,0
+defb 0,0,198,198,198,198,198,254,198,198,198,198,198,198,0,0
+defb 0,0,60,24,24,24,24,24,24,24,24,24,24,60,0,0
+defb 0,0,30,12,12,12,12,12,12,12,204,204,204,120,0,0
+defb 0,0,230,102,102,102,108,120,120,108,102,102,102,230,0,0
+defb 0,0,240,96,96,96,96,96,96,96,96,98,102,254,0,0
+defb 0,0,195,231,255,255,219,195,195,195,195,195,195,195,0,0
+defb 0,0,195,227,243,251,223,207,199,195,195,195,195,195,0,0
+defb 0,0,60,102,195,195,195,195,195,195,195,195,102,60,0,0
+defb 0,0,252,102,102,102,102,124,96,96,96,96,96,240,0,0
+defb 0,0,60,102,195,195,195,195,195,195,195,203,110,62,6,7
+defb 0,0,252,102,102,102,100,124,110,102,102,102,102,230,0,0
+defb 0,0,124,198,198,96,56,12,6,6,6,198,198,124,0,0
+defb 0,0,255,219,153,24,24,24,24,24,24,24,24,60,0,0
+defb 0,0,195,195,195,195,195,195,195,195,195,195,195,126,0,0
+defb 0,0,195,195,195,195,195,195,195,195,231,126,60,24,0,0
+defb 0,0,195,195,195,195,195,195,195,219,219,255,102,102,0,0
+defb 0,0,195,195,231,126,60,24,24,60,126,231,195,195,0,0
+defb 0,0,195,195,195,231,126,60,24,24,24,24,24,60,0,0
+defb 0,0,255,195,134,12,24,48,96,192,128,129,131,255,0,0; Z
+defb 0,0,60,102,195,219,211,211,211,211,219,195,102,60,0,0; (C)
+end asm
+end sub
 
 
 
-;tplayer
-defb 1,1,1,1,5,237,125,251,00110000b
-defb 128,128,128,128,224,247,254,255,00110000b
-defb 119,247,123,251,123,252,127,247,00110000b
-defb 254,255,254,255,254,63,254,239,00110000b
-defb 170,255,255,255,127,255,223,223,00110000b
-defb 160,224,224,192,224,240,240,255,00110000b
-defb 223,223,227,124,255,255,255,170,00110000b
-defb 255,128,112,224,192,224,224,160,00110000b
-defb 247,127,255,123,251,123,247,119,00110000b
-defb 239,254,255,254,255,254,255,254,00110000b
-defb 251,125,237,5,1,1,1,1,00110000b
-defb 255,190,247,224,128,128,128,128,00110000b
-defb 5,7,7,3,7,15,13,255,00110000b
-defb 85,255,255,255,254,255,255,255,00110000b
-defb 255,1,14,7,3,7,7,5,00110000b
-defb 255,255,199,62,255,255,255,85,00110000b
-;t1
-defb 1,1,1,245,109,253,123,247,00110000b
-defb 128,128,128,231,246,255,254,255,00110000b
-defb 118,246,118,247,119,248,127,239,00110000b
-defb 126,127,126,255,254,63,246,247,00110000b
-defb 170,255,255,127,255,223,223,216,00110000b
-defb 168,248,248,232,240,248,248,255,00110000b
-defb 216,223,223,224,63,255,255,170,00110000b
-defb 255,192,184,112,224,248,248,168,00110000b
-defb 239,111,255,119,247,118,246,118,00110000b
-defb 247,254,255,254,255,126,127,126,00110000b
-defb 247,123,253,109,229,1,1,1,00110000b
-defb 255,254,223,182,239,128,128,128,00110000b
-defb 21,31,31,7,15,29,27,255,00110000b
-defb 85,255,255,252,255,255,255,31,00110000b
-defb 255,3,29,14,23,31,31,21,00110000b
-defb 31,255,255,7,254,255,255,85,00110000b
-;t2
-defb 0,1,1,1,1,13,125,251,00110000b
-defb 0,128,128,128,128,240,254,255,00110000b
-defb 118,246,123,251,123,252,119,0,00110000b
-defb 126,127,254,255,254,63,238,0,00110000b
-defb 42,127,127,127,63,127,95,92,00110000b
-defb 128,192,192,192,224,224,224,254,00110000b
-defb 92,95,99,60,127,127,127,42,00110000b
-defb 254,128,96,224,192,192,192,128,00110000b
-defb 0,119,255,123,251,123,246,118,00110000b
-defb 0,238,255,254,255,254,127,126,00110000b
-defb 251,125,13,1,1,1,1,0,00110000b
-defb 223,190,240,128,128,128,128,0,00110000b
-defb 1,3,3,3,7,7,6,127,00110000b
-defb 84,254,254,254,252,254,254,62,00110000b
-defb 127,1,6,7,3,3,3,1,00110000b
-defb 62,254,198,60,254,254,254,84,00110000b
-;t3
-defb 0,0,1,1,1,13,125,59,00110000b
-defb 0,0,128,128,128,240,254,252,00110000b
-defb 118,54,123,59,123,60,119,0,00110000b
-defb 126,124,254,252,254,60,238,0,00110000b
-defb 128,85,127,127,63,127,127,92,00110000b
-defb 0,64,192,192,224,224,192,252,00110000b
-defb 92,95,99,60,127,127,85,0,00110000b
-defb 252,224,224,224,192,192,64,0,00110000b
-defb 0,119,63,123,59,123,54,118,00110000b
-defb 0,238,252,254,252,254,124,126,00110000b
-defb 59,125,13,1,1,1,0,0,00110000b
-defb 252,158,240,128,128,128,0,0,00110000b
-defb 0,2,3,3,7,5,5,63,00110000b
-defb 0,170,254,254,252,254,254,62,00110000b
-defb 63,1,6,7,3,3,2,0,00110000b
-defb 62,254,198,60,254,254,170,0,00110000b
-;t4
-defb 0,0,1,1,1,1,55,55,00110000b
-defb 0,0,128,128,128,128,236,236,00110000b
-defb 62,62,63,63,55,51,0,0,00110000b
-defb 124,124,252,252,236,204,0,0,00110000b
-defb 0,0,63,63,15,31,63,60,00110000b
-defb 0,0,192,192,0,192,192,252,00110000b
-defb 60,63,31,15,63,63,0,0,00110000b
-defb 252,192,192,0,192,192,0,0,00110000b
-defb 0,0,51,55,63,63,62,62,00110000b
-defb 0,0,204,236,252,252,124,124,00110000b
-defb 55,55,1,1,1,1,0,0,00110000b
-defb 236,236,128,128,128,128,0,0,00110000b
-defb 0,0,3,3,0,3,3,63,00110000b
-defb 0,0,252,252,240,248,252,60,00110000b
-defb 63,3,3,0,3,3,0,0,00110000b
-defb 60,252,248,240,252,252,0,0,00110000b
-;explosiones 90 tile 5 dir 0
-defb 00000000b,00110111b,01011000b,01100110b,10101000b,10100000b,10111111b,11000110b,00110000b
-defb 00000000b,11100000b,10101000b,01110100b,01011010b,01010100b,10011000b,11110100b,00110000b
-defb 10000000b,01001100b,01000011b,00111000b,01000111b,01000010b,00100010b,00011100b,00110000b
-defb 01110010b,01100010b,01110010b,11010010b,00101100b,11011000b,00000000b,00000000b,00110000b
-;94,95,96,97 tile 5 dir 1
-defb 00000000b,00000000b,00000000b,00000101b,00001010b,00010010b,00010011b,00001100b,00110000b
-defb 00000000b,00000000b,00110000b,11001000b,01000100b,10100100b,00011000b,10010000b,00110000b
-defb 00010001b,00001010b,00001001b,00010110b,00010000b,00001111b,00000001b,00000000b,00110000b
-defb 01101000b,01001000b,10010000b,01100000b,10010000b,00010000b,00100000b,11000000b,00110000b
-; tile 5 dir 2
-defb 00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00000011b,00000100b,00110000b
-defb 00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,10000000b,01000000b,00110000b
-defb 00000010b,00000001b,00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00110000b
-defb 01000000b,10000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00110000b
-;tile 5 dir 3
-defb 00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00000011b,00000100b,00110000b
-defb 00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,10000000b,01000000b,00110000b
-defb 00000010b,00000001b,00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00110000b
-defb 01000000b,10000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00000000b,00110000b
+sub fastcall graficos
+asm
+;disparos
+defb   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,128,  1,128
+defb   1,128,  1,128,  1,128,  0,  0,  1,128,  0,  0,  0,  0,  1,128
 
-;disparo
-defb 0,0,0,0,0,0,1,1,00110000b
-defb 0,0,0,0,0,0,128,128,00110000b
-defb 1,1,1,0,1,0,0,1,00110000b
-defb 128,128,128,0,128,0,0,128,00110000b
-defb 0,0,0,0,0,0,0,151,00110000b
-defb 0,0,0,0,0,0,0,192,00110000b
-defb 151,0,0,0,0,0,0,0,00110000b
-defb 192,0,0,0,0,0,0,0,00110000b
-defb 1,0,0,1,0,1,1,1,00110000b
-defb 128,0,0,128,0,128,128,128,00110000b
-defb 1,1,0,0,0,0,0,0,00110000b
-defb 128,128,0,0,0,0,0,0,00110000b
-defb 0,0,0,0,0,0,0,3,00110000b
-defb 0,0,0,0,0,0,0,233,00110000b
-defb 3,0,0,0,0,0,0,0,00110000b
-defb 233,0,0,0,0,0,0,0,00110000b
+defb   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,151,192
+defb 151,192,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
+
+defb   1,128,  0,  0,  0,  0,  1,128,  0,  0,  1,128,  1,128,  1,128
+defb   1,128,  1,128,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
+
+defb   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  3,233
+defb   3,233,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
+
+;explosiones
+defb  12,  4, 97,240,142, 72, 16,  4, 32,130, 64,  6, 98,  4, 96,  6
+defb 118,146, 48, 18, 56, 58,189,125,159,184, 31,240, 35, 68, 16, 24
+
+defb   0,  2, 24, 13,  8,201,227,181,164,138, 72, 72,  8, 24,  8,  8
+defb  12, 80, 15, 48,  6,160, 27,216, 44, 36, 68, 36, 68, 56, 56,  0
+
+defb   0,  0,  0,  0,  1,  0,  2, 48,  0, 48,  1,192, 50,100, 52, 32
+defb   6, 32, 11, 64,  1,216, 24, 48, 28, 48,  8,128,  0,  0,  0,  0
+
+;tank player
+
+defb 1,128,1,128,1,128,57,156,79,242,125,190,90,90,117,174,86,106,119,238,91,218,123,222,92,58,127,254,79,242,61,188
+defb 0,0,127,240,170,168,191,232,252,120,243,176,111,80,238,191,238,191,111,80,243,176,252,120,191,232,170,168,127,240,0,0
+defb 61,188,79,242,127,254,92,58,123,222,91,218,119,238,86,106,117,174,90,90,125,190,79,242,57,156,1,128,1,128,1,128
+defb 0,0,15,254,21,85,23,253,30,63,13,207,10,246,253,119,253,119,10,246,13,207,30,63,23,253,21,85,15,254,0,0
+
+defb 3,192,49,140,73,146,121,158,79,242,125,190,90,90,119,238,87,234,119,238,87,234,119,238,87,234,120,30,79,242,61,188
+defb 0,0,127,252,170,170,191,234,224,124,223,176,95,209,223,191,223,191,95,209,223,176,224,124,191,234,170,170,127,252,0,0
+defb 61,188,79,242,120,30,87,234,119,238,87,234,119,238,87,234,119,238,90,90,125,190,79,242,121,158,73,146,49,140,3,192
+defb 0,0,63,254,85,85,87,253,62,7,13,251,139,250,253,251,253,251,139,250,13,251,62,7,87,253,85,85,63,254,0,0
+
+
+defb 1,128,1,128,1,128,49,156,79,242,125,190,90,90,119,238,87,234,119,238,91,218,123,222,93,186,126,126,79,242,61,188
+defb 0,0,127,240,170,168,191,232,252,112,243,176,111,208,223,191,223,191,111,208,243,176,252,120,191,232,170,168,127,240,0,0
+defb 61,188,79,242,126,126,93,186,123,222,91,218,119,238,87,234,119,238,90,90,125,190,79,242,57,140,1,128,1,128,1,128
+defb 0,0,15,254,21,85,23,253,30,63,13,207,11,246,253,251,253,251,11,246,13,207,14,63,23,253,21,85,15,254,0,0
+
+
+defb 1,128,1,128,1,128,49,140,79,242,125,190,90,90,119,238,87,234,119,238,91,218,124,62,95,250,59,220,0,0,0,0
+defb 0,0,31,240,42,168,63,232,60,112,27,176,55,208,55,191,55,191,55,208,27,176,60,112,63,232,42,168,31,240,0,0
+defb 0,0,0,0,59,220,95,250,124,62,91,218,119,238,87,234,119,238,90,90,125,190,79,242,49,140,1,128,1,128,1,128
+defb 0,0,15,248,21,84,23,252,14,60,13,216,11,236,253,236,253,236,11,236,13,216,14,60,23,252,21,84,15,248,0,0
+
+defb 0,0,1,128,1,128,1,128,29,184,63,252,42,84,59,220,43,212,59,220,45,180,62,124,47,244,27,216,0,0,0,0
+defb 0,0,0,0,31,224,42,176,63,240,28,48,59,224,55,190,55,190,59,224,28,48,63,240,42,176,31,224,0,0,0,0
+defb 0,0,0,0,27,216,47,244,62,124,45,180,59,220,43,212,59,220,42,84,63,252,29,184,1,128,1,128,1,128,0,0
+defb 0,0,0,0,7,248,13,84,15,252,12,56,7,220,125,236,125,236,7,220,12,56,15,252,13,84,7,248,0,0,0,0
+;appear1
+;defb 1,0,1,0,1,0,1,0,1,0,1,0,1,128,3,255,255,192,1,128,0,128,0,128,0,128,0,128,0,128,0,128
+;appear2
+;defb 1,0,0,0,0,0,1,0,1,0,1,0,1,0,1,249,159,128,0,128,0,128,0,128,0,128,0,0,0,0,0,128
+;appear3
+;defb 0,0,0,0,0,0,0,0,1,0,1,0,1,0,1,240,15,128,0,128,0,128,0,128,0,0,0,0,0,0,0,128
+;aguila rota
+defb $00,$00,$01,$00,$01,$00,$01,$00,$01,$00,$05,$a0,$03,$c0,$7f,$e0,$07,$fe,$03,$c0,$05,$a0,$01,$00,$01,$00,$01,$00,$01,$00,$00,$00
+defb $00,$00,$00,$00,$20,$04,$10,$08,$08,$90,$04,$a0,$03,$c0,$0f,$c0,$03,$f0,$03,$c0,$05,$20,$09,$10,$10,$08,$20,$04,$00,$00,$00,$00
+defb $00,$00,$00,$00,$00,$00,$01,$00,$00,$00,$01,$00,$01,$00,$01,$e8,$17,$80,$00,$80,$00,$80,$00,$00,$00,$80,$00,$00,$00,$00,$00,$00
+defb 0,8,0,28,0,60,3,110,7,198,27,130,127,224,205,224,191,248,175,224,127,176,159,240,63,184,203,134,85,68,10,160
 
 end asm
-end function
+end sub 
 
 
-
-
-function fastcall pintabuffer()
+sub fastcall fadeout()
 asm
 
-di
-
-ld a,20
-ld b,0
-
-ld hl,53314
-ld de,16450
-ld c,a 
- ldir 
-
-ld hl,53570
-ld de,16706
-ld c,a 
- ldir 
-
-ld hl,53826
-ld de,16962
-ld c,a 
- ldir 
-
-ld hl,54082
-ld de,17218
-ld c,a 
- ldir 
-
-ld hl,54338
-ld de,17474
-ld c,a 
- ldir 
-
-ld hl,54594
-ld de,17730
-ld c,a 
- ldir 
-
-ld hl,54850
-ld de,17986
-ld c,a 
- ldir 
-
-ld hl,55106
-ld de,18242
-ld c,a 
- ldir 
-
-ld hl,53346
-ld de,16482
-ld c,a 
- ldir 
-
-ld hl,53602
-ld de,16738
-ld c,a 
- ldir 
-
-ld hl,53858
-ld de,16994
-ld c,a 
- ldir 
-
-ld hl,54114
-ld de,17250
-ld c,a 
- ldir 
-
-ld hl,54370
-ld de,17506
-ld c,a 
- ldir 
-
-ld hl,54626
-ld de,17762
-ld c,a 
- ldir 
-
-ld hl,54882
-ld de,18018
-ld c,a 
- ldir 
-
-ld hl,55138
-ld de,18274
-ld c,a 
- ldir 
-
-ld hl,53378
-ld de,16514
-ld c,a 
- ldir 
-
-ld hl,53634
-ld de,16770
-ld c,a 
- ldir 
-
-ld hl,53890
-ld de,17026
-ld c,a 
- ldir 
-
-ld hl,54146
-ld de,17282
-ld c,a 
- ldir 
-
-ld hl,54402
-ld de,17538
-ld c,a 
- ldir 
-
-ld hl,54658
-ld de,17794
-ld c,a 
- ldir 
-
-ld hl,54914
-ld de,18050
-ld c,a 
- ldir 
-
-ld hl,55170
-ld de,18306
-ld c,a 
- ldir 
-
-ld hl,53410
-ld de,16546
-ld c,a 
- ldir 
-
-ld hl,53666
-ld de,16802
-ld c,a 
- ldir 
-
-ld hl,53922
-ld de,17058
-ld c,a 
- ldir 
-
-ld hl,54178
-ld de,17314
-ld c,a 
- ldir 
-
-ld hl,54434
-ld de,17570
-ld c,a 
- ldir 
-
-ld hl,54690
-ld de,17826
-ld c,a 
- ldir 
-
-ld hl,54946
-ld de,18082
-ld c,a 
- ldir 
-
-ld hl,55202
-ld de,18338
-ld c,a 
- ldir 
-
-ld hl,53442
-ld de,16578
-ld c,a 
- ldir 
-
-ld hl,53698
-ld de,16834
-ld c,a 
- ldir 
-
-ld hl,53954
-ld de,17090
-ld c,a 
- ldir 
-
-ld hl,54210
-ld de,17346
-ld c,a 
- ldir 
-
-ld hl,54466
-ld de,17602
-ld c,a 
- ldir 
-
-ld hl,54722
-ld de,17858
-ld c,a 
- ldir 
-
-ld hl,54978
-ld de,18114
-ld c,a 
- ldir 
-
-ld hl,55234
-ld de,18370
-ld c,a 
- ldir 
-
-ld hl,53474
-ld de,16610
-ld c,a 
- ldir 
-
-ld hl,53730
-ld de,16866
-ld c,a 
- ldir 
-
-ld hl,53986
-ld de,17122
-ld c,a 
- ldir 
-
-ld hl,54242
-ld de,17378
-ld c,a 
- ldir 
-
-ld hl,54498
-ld de,17634
-ld c,a 
- ldir 
-
-ld hl,54754
-ld de,17890
-ld c,a 
- ldir 
-
-ld hl,55010
-ld de,18146
-ld c,a 
- ldir 
-
-ld hl,55266
-ld de,18402
-ld c,a 
- ldir 
-
-ld hl,55298
-ld de,18434
-ld c,a 
- ldir 
-
-ld hl,55554
-ld de,18690
-ld c,a 
- ldir 
-
-ld hl,55810
-ld de,18946
-ld c,a 
- ldir 
-
-ld hl,56066
-ld de,19202
-ld c,a 
- ldir 
-
-ld hl,56322
-ld de,19458
-ld c,a 
- ldir 
-
-ld hl,56578
-ld de,19714
-ld c,a 
- ldir 
-
-ld hl,56834
-ld de,19970
-ld c,a 
- ldir 
-
-ld hl,57090
-ld de,20226
-ld c,a 
- ldir 
-
-ld hl,55330
-ld de,18466
-ld c,a 
- ldir 
-
-ld hl,55586
-ld de,18722
-ld c,a 
- ldir 
-
-ld hl,55842
-ld de,18978
-ld c,a 
- ldir 
-
-ld hl,56098
-ld de,19234
-ld c,a 
- ldir 
-
-ld hl,56354
-ld de,19490
-ld c,a 
- ldir 
-
-ld hl,56610
-ld de,19746
-ld c,a 
- ldir 
-
-ld hl,56866
-ld de,20002
-ld c,a 
- ldir 
-
-ld hl,57122
-ld de,20258
-ld c,a 
- ldir 
-
-ld hl,55362
-ld de,18498
-ld c,a 
- ldir 
-
-ld hl,55618
-ld de,18754
-ld c,a 
- ldir 
-
-ld hl,55874
-ld de,19010
-ld c,a 
- ldir 
-
-ld hl,56130
-ld de,19266
-ld c,a 
- ldir 
-
-ld hl,56386
-ld de,19522
-ld c,a 
- ldir 
-
-ld hl,56642
-ld de,19778
-ld c,a 
- ldir 
-
-ld hl,56898
-ld de,20034
-ld c,a 
- ldir 
-
-ld hl,57154
-ld de,20290
-ld c,a 
- ldir 
-
-ld hl,55394
-ld de,18530
-ld c,a 
- ldir 
-
-ld hl,55650
-ld de,18786
-ld c,a 
- ldir 
-
-ld hl,55906
-ld de,19042
-ld c,a 
- ldir 
-
-ld hl,56162
-ld de,19298
-ld c,a 
- ldir 
-
-ld hl,56418
-ld de,19554
-ld c,a 
- ldir 
-
-ld hl,56674
-ld de,19810
-ld c,a 
- ldir 
-
-ld hl,56930
-ld de,20066
-ld c,a 
- ldir 
-
-ld hl,57186
-ld de,20322
-ld c,a 
- ldir 
-
-ld hl,55426
-ld de,18562
-ld c,a 
- ldir 
-
-ld hl,55682
-ld de,18818
-ld c,a 
- ldir 
-
-ld hl,55938
-ld de,19074
-ld c,a 
- ldir 
-
-ld hl,56194
-ld de,19330
-ld c,a 
- ldir 
-
-ld hl,56450
-ld de,19586
-ld c,a 
- ldir 
-
-ld hl,56706
-ld de,19842
-ld c,a 
- ldir 
-
-ld hl,56962
-ld de,20098
-ld c,a 
- ldir 
-
-ld hl,57218
-ld de,20354
-ld c,a 
- ldir 
-
-ld hl,55458
-ld de,18594
-ld c,a 
- ldir 
-
-ld hl,55714
-ld de,18850
-ld c,a 
- ldir 
-
-ld hl,55970
-ld de,19106
-ld c,a 
- ldir 
-
-ld hl,56226
-ld de,19362
-ld c,a 
- ldir 
-
-ld hl,56482
-ld de,19618
-ld c,a 
- ldir 
-
-ld hl,56738
-ld de,19874
-ld c,a 
- ldir 
-
-ld hl,56994
-ld de,20130
-ld c,a 
- ldir 
-
-ld hl,57250
-ld de,20386
-ld c,a 
- ldir 
-
-ld hl,55490
-ld de,18626
-ld c,a 
- ldir 
-
-ld hl,55746
-ld de,18882
-ld c,a 
- ldir 
-
-ld hl,56002
-ld de,19138
-ld c,a 
- ldir 
-
-ld hl,56258
-ld de,19394
-ld c,a 
- ldir 
-
-ld hl,56514
-ld de,19650
-ld c,a 
- ldir 
-
-ld hl,56770
-ld de,19906
-ld c,a 
- ldir 
-
-ld hl,57026
-ld de,20162
-ld c,a 
- ldir 
-
-ld hl,57282
-ld de,20418
-ld c,a 
- ldir 
-
-ld hl,55522
-ld de,18658
-ld c,a 
- ldir 
-
-ld hl,55778
-ld de,18914
-ld c,a 
- ldir 
-
-ld hl,56034
-ld de,19170
-ld c,a 
- ldir 
-
-ld hl,56290
-ld de,19426
-ld c,a 
- ldir 
-
-ld hl,56546
-ld de,19682
-ld c,a 
- ldir 
-
-ld hl,56802
-ld de,19938
-ld c,a 
- ldir 
-
-ld hl,57058
-ld de,20194
-ld c,a 
- ldir 
-
-ld hl,57314
-ld de,20450
-ld c,a 
- ldir 
-
-ld hl,57346
-ld de,20482
-ld c,a 
- ldir 
-
-ld hl,57602
-ld de,20738
-ld c,a 
- ldir 
-
-ld hl,57858
-ld de,20994
-ld c,a 
- ldir 
-
-ld hl,58114
-ld de,21250
-ld c,a 
- ldir 
-
-ld hl,58370
-ld de,21506
-ld c,a 
- ldir 
-
-ld hl,58626
-ld de,21762
-ld c,a 
- ldir 
-
-ld hl,58882
-ld de,22018
-ld c,a 
- ldir 
-
-ld hl,59138
-ld de,22274
-ld c,a 
- ldir 
-
-ld hl,57378
-ld de,20514
-ld c,a 
- ldir 
-
-ld hl,57634
-ld de,20770
-ld c,a 
- ldir 
-
-ld hl,57890
-ld de,21026
-ld c,a 
- ldir 
-
-ld hl,58146
-ld de,21282
-ld c,a 
- ldir 
-
-ld hl,58402
-ld de,21538
-ld c,a 
- ldir 
-
-ld hl,58658
-ld de,21794
-ld c,a 
- ldir 
-
-ld hl,58914
-ld de,22050
-ld c,a 
- ldir 
-
-ld hl,59170
-ld de,22306
-ld c,a 
- ldir 
-
-ld hl,57410
-ld de,20546
-ld c,a 
- ldir 
-
-ld hl,57666
-ld de,20802
-ld c,a 
- ldir 
-
-ld hl,57922
-ld de,21058
-ld c,a 
- ldir 
-
-ld hl,58178
-ld de,21314
-ld c,a 
- ldir 
-
-ld hl,58434
-ld de,21570
-ld c,a 
- ldir 
-
-ld hl,58690
-ld de,21826
-ld c,a 
- ldir 
-
-ld hl,58946
-ld de,22082
-ld c,a 
- ldir 
-
-ld hl,59202
-ld de,22338
-ld c,a 
- ldir 
-
-ld hl,57442
-ld de,20578
-ld c,a 
- ldir 
-
-ld hl,57698
-ld de,20834
-ld c,a 
- ldir 
-
-ld hl,57954
-ld de,21090
-ld c,a 
- ldir 
-
-ld hl,58210
-ld de,21346
-ld c,a 
- ldir 
-
-ld hl,58466
-ld de,21602
-ld c,a 
- ldir 
-
-ld hl,58722
-ld de,21858
-ld c,a 
- ldir 
-
-ld hl,58978
-ld de,22114
-ld c,a 
- ldir 
-
-ld hl,59234
-ld de,22370
-ld c,a 
- ldir 
-
-ld hl,57474
-ld de,20610
-ld c,a 
- ldir 
-
-ld hl,57730
-ld de,20866
-ld c,a 
- ldir 
-
-ld hl,57986
-ld de,21122
-ld c,a 
- ldir 
-
-ld hl,58242
-ld de,21378
-ld c,a 
- ldir 
-
-ld hl,58498
-ld de,21634
-ld c,a 
- ldir 
-
-ld hl,58754
-ld de,21890
-ld c,a 
- ldir 
-
-ld hl,59010
-ld de,22146
-ld c,a 
- ldir 
-
-ld hl,59266
-ld de,22402
-ld c,a 
- ldir 
-
-ld hl,57506
-ld de,20642
-ld c,a 
- ldir 
-
-ld hl,57762
-ld de,20898
-ld c,a 
- ldir 
-
-ld hl,58018
-ld de,21154
-ld c,a 
- ldir 
-
-ld hl,58274
-ld de,21410
-ld c,a 
- ldir 
-
-ld hl,58530
-ld de,21666
-ld c,a 
- ldir 
-
-ld hl,58786
-ld de,21922
-ld c,a 
- ldir 
-
-ld hl,59042
-ld de,22178
-ld c,a 
- ldir 
-
-ld hl,59298
-ld de,22434
-ld c,a 
- ldir 
-
-ld de,22530+32*2
-ld hl,36864+22530+32*2
-ld c,a
-ldir
-
-ld de,22530+32*3
-ld hl,36864+22530+32*3
-ld c,a
-ldir
-
-ld de,22530+32*4
-ld hl,36864+22530+32*4
-ld c,a
-ldir
-
-ld de,22530+32*5
-ld hl,36864+22530+32*5
-ld c,a
-ldir
-ld de,22530+32*6
-ld hl,36864+22530+32*6
-ld c,a
-ldir
-ld de,22530+32*7
-ld hl,36864+22530+32*7
-ld c,a
-ldir
-ld de,22530+32*8
-ld hl,36864+22530+32*8
-ld c,a
-ldir
-ld de,22530+32*9
-ld hl,36864+22530+32*9
-ld c,a
-ldir
-ld de,22530+32*10
-ld hl,36864+22530+32*10
-ld c,a
-ldir
-ld de,22530+32*11
-ld hl,36864+22530+32*11
-ld c,a
-ldir
-ld de,22530+32*12
-ld hl,36864+22530+32*12
-ld c,a
-ldir
-ld de,22530+32*13
-ld hl,36864+22530+32*13
-ld c,a
-ldir
-ld de,22530+32*14
-ld hl,36864+22530+32*14
-ld c,a
-ldir
-ld de,22530+32*15
-ld hl,36864+22530+32*15
-ld c,a
-ldir
-ld de,22530+32*16
-ld hl,36864+22530+32*16
-ld c,a
-ldir
-ld de,22530+32*17
-ld hl,36864+22530+32*17
-ld c,a
-ldir
-ld de,22530+32*18
-ld hl,36864+22530+32*18
-ld c,a
-ldir
-ld de,22530+32*19
-ld hl,36864+22530+32*19
-ld c,a
-ldir
-ld de,22530+32*20
-ld hl,36864+22530+32*20
-ld c,a
-ldir
-ld de,22530+32*21
-ld hl,36864+22530+32*21
-ld c,a
-ldir
-ei
-
+	ld a,71
+mloop:
+	ld hl,22528
+	ld b,24
+rows:
+	push bc
+	ld b,32
+srow:
+	ld (hl),a
+	inc hl
+	djnz srow
+	pop bc
+	djnz rows
+	halt
+	halt	
+	halt
+	halt
+	dec a
+	cp 63
+	jr z, endz
+	jr mloop
+endz:
 end asm
-end function
+end sub
 
 
-
-function fastcall notes()
-asm
-call START
-jp endd2
-
-; *****************************************************************************
-; * The Music Box Player Engine
-; *
-; * Based on code written by Mark Alexander for the utility, The Music Box.
-; * Modified by Chris Cowley
-; *
-; * Produced by Beepola v1.08.01
-; ******************************************************************************
- 
-START:
-                          LD    HL,MUSICDATA         ;  <- Pointer to Music Data. Change
-                                                     ;     this to play a different song
-                          LD   A,(HL)                         ; Get the loop start pointer
-                          LD   (PATTERN_LOOP_BEGIN),A
-                          INC  HL
-                          LD   A,(HL)                         ; Get the song end pointer
-                          LD   (PATTERN_LOOP_END),A
-                          INC  HL
-                          LD   (PATTERNDATA1),HL
-                          LD   (PATTERNDATA2),HL
-                          LD   A,254
-                          LD   (PATTERN_PTR),A                ; Set the pattern pointer to zero
-                          DI
-                          CALL  NEXT_PATTERN
-NEXTNOTE:
-                          CALL  PLAYNOTE
-                          JR    NEXTNOTE                    ; Play next note
-
-                          EI
-                          RET                                 ; Return from playing tune
-
-PATTERN_PTR:              DEFB 0
-NOTE_PTR:                 DEFB 0
-
-
-; ********************************************************************************************************
-; * NEXT_PATTERN
-; *
-; * Select the next pattern in sequence (and handle looping if we've reached PATTERN_LOOP_END
-; * Execution falls through to PLAYNOTE to play the first note from our next pattern
-; ********************************************************************************************************
-NEXT_PATTERN:
-                          LD   A,(PATTERN_PTR)
-                          INC  A
-                          INC  A
-                          DEFB $FE                           ; CP n
-PATTERN_LOOP_END:         DEFB 0
-                          JR   NZ,NO_PATTERN_LOOP
-                          DEFB $3E                           ; LD A,n
-PATTERN_LOOP_BEGIN:       DEFB 0
-                          POP  HL
-                          EI
-                          RET
-NO_PATTERN_LOOP:          LD   (PATTERN_PTR),A
-			                    DEFB $21                            ; LD HL,nn
-PATTERNDATA1:             DEFW $0000
-                          LD   E,A                            ; (this is the first byte of the pattern)
-                          LD   D,0                            ; and store it at TEMPO
-                          ADD  HL,DE
-                          LD   E,(HL)
-                          INC  HL
-                          LD   D,(HL)
-                          LD   A,(DE)                         ; Pattern Tempo -> A
-	                	      LD   (TEMPO),A                      ; Store it at TEMPO
-
-                          LD   A,1
-                          LD   (NOTE_PTR),A
-
-PLAYNOTE: 
-			                    DEFB $21                            ; LD HL,nn
-PATTERNDATA2:             DEFW $0000
-                          LD   A,(PATTERN_PTR)
-                          LD   E,A
-                          LD   D,0
-                          ADD  HL,DE
-                          LD   E,(HL)
-                          INC  HL
-                          LD   D,(HL)                         ; Now DE = Start of Pattern data
-                          LD   A,(NOTE_PTR)
-                          LD   L,A
-                          LD   H,0
-                          ADD  HL,DE                          ; Now HL = address of note data
-                          LD   D,(HL)
-                          LD   E,1
-
-; IF D = $0 then we are at the end of the pattern so increment PATTERN_PTR by 2 and set NOTE_PTR=0
-                          LD   A,D
-                          AND  A                              ; Optimised CP 0
-                          JR   Z,NEXT_PATTERN
-
-                          PUSH DE
-                          INC  HL
-                          LD   D,(HL)
-                          LD   E,1
-
-                          LD   A,(NOTE_PTR)
-                          INC  A
-                          INC  A
-                          LD   (NOTE_PTR),A                   ; Increment the note pointer by 2 (one note per chan)
-
-                          POP  HL                             ; Now CH1 freq is in HL, and CH2 freq is in DE
-
-                          LD   A,H
-                          DEC  A
-                          JR   NZ,OUTPUT_NOTE
-
-                          LD   A,D                            ; executed only if Channel 2 contains a rest
-                          DEC  A                              ; if DE (CH1 note) is also a rest then..
-                          JR   Z,PLAY_SILENCE                 ; Play silence
-
-OUTPUT_NOTE:              LD   A,(TEMPO)
-                          LD   C,A
-                          LD   B,0
-                          LD   A,0
-                          EX   AF,AF'
-                          LD   A,0                   ; So now BC = TEMPO, A and A' = BORDER_COL
-                          LD   IXH,D
-                          LD   D,$10
-EAE5:                     NOP
-                          NOP
-EAE7:                     EX   AF,AF'
-                          DEC  E
-                          OUT  ($FE),A
-                          JR   NZ,EB04
-
-                          LD   E,IXH
-                          XOR  D
-                          EX   AF,AF'
-                          DEC  L
-                          JP   NZ,EB0B
-
-EAF5:                     OUT  ($FE),A
-                          LD   L,H
-                          XOR  D
-                          DJNZ EAE5
-
-                          INC  C
-                          JP   NZ,EAE7
-
-                          RET
-
-EB04:
-                          JR   Z,EB04
-                          EX   AF,AF'
-                          DEC  L
-                          JP   Z,EAF5
-EB0B:
-                          OUT  ($FE),A
-                          NOP
-                          NOP
-                          DJNZ EAE5
-                          INC  C
-                          JP   NZ,EAE7
-                          RET
-
-PLAY_SILENCE:
-                          LD   A,(TEMPO)
-                          CPL
-                          LD   C,A
-SILENCE_LOOP2:            PUSH BC
-                          PUSH AF
-                          LD   B,0
-SILENCE_LOOP:             PUSH HL
-                          LD   HL,0000
-                          SRA  (HL)
-                          SRA  (HL)
-                          SRA  (HL)
-                          NOP
-                          POP  HL
-                          DJNZ SILENCE_LOOP
-                          DEC  C
-                          JP   NZ,SILENCE_LOOP
-                          POP  AF
-                          POP  BC
-                          RET
-
-
-; *** DATA ***
-TEMPO:                    DEFB 234
-
-MUSICDATA:
-                    DEFB 0   ; Loop start point * 2
-                    DEFB 2   ; Song Length * 2
-PATTERNDATA:        DEFW      PAT0
-
-; *** Pattern data consists of pairs of frequency values CH1,CH2 with a single $0 to
-; *** Mark the end of the pattern, and $01 for a rest
-PAT0:
-         DEFB 234  ; Pattern tempo
-             DEFB 45,1
-             DEFB 40,1
-             DEFB 38,1
-             DEFB 45,1
-             DEFB 40,1
-             DEFB 38,1
-             DEFB 38,1
-             DEFB 34,1
-             DEFB 30,1
-             DEFB 38,1
-             DEFB 34,1
-             DEFB 30,1
-             DEFB 34,1
-             DEFB 30,1
-             DEFB 27,1
-             DEFB 34,1
-             DEFB 30,1
-             DEFB 27,1
-             DEFB 28,1
-             DEFB 25,1
-             DEFB 23,1
-             DEFB 28,1
-             DEFB 25,1
-             DEFB 23,1
-             DEFB 23,1
-             DEFB 1,1
-             DEFB 1,1
-             DEFB 23,1
-             DEFB 23,1
-             DEFB 23,1
-             DEFB 23,1
-         	 DEFB $0
-
-endd2:
-end asm
-end function
