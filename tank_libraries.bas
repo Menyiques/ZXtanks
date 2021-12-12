@@ -43,6 +43,9 @@ end sub
 function bigchr(cod as ubyte) as string
 	dim cchr as ubyte
 	cchr=59
+	if cod>47 and cod<58
+		cchr=cod
+	end if
 	if cod>96
 		cchr=cod-32
 	end if
@@ -256,7 +259,7 @@ sub readkeyboardwait()
 	wait(10)
 	do
 	lastkey=code(inkey$())
-	loop until lastkey>96 or lastkey=32
+	loop until (lastkey>96 and lastkey<123) or lastkey=32 or (lastkey>50 and lastkey<58) or lastkey=48
 	sound(2)
 end sub
 
