@@ -258,8 +258,8 @@ end sub
 sub readkeyboardwait()
 	wait(10)
 	do
-	lastkey=code(inkey$())
-	loop until (lastkey>96 and lastkey<123) or lastkey=32 or (lastkey>50 and lastkey<58) or lastkey=48
+		lastkey=code(inkey$())
+	loop until (lastkey>96 and lastkey<123) or lastkey=32 or (lastkey>47 and lastkey<58)
 	sound(2)
 end sub
 

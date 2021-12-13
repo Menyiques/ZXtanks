@@ -17,6 +17,13 @@ dim appearing as ubyte
 dim ku,kd,kl,kr,kf as ubyte
 dim punt(4) as ubyte
 dim keys as string
+dim kempstonpresent as ubyte
+
+if in(31)=255
+	kempstonpresent=0
+else
+	kempstonpresent=1
+end if
 
 #include "tank_libraries.bas"
 #include "tank_sound.bas"
@@ -64,7 +71,7 @@ if lastkey=50
 	readkeyboardwait():kf=lastkey
 	goto menu
 end if
-loop until lastkey=49 or (kempston() bAND 16)>0
+loop until lastkey=49 or (kempstonpresent=1 and kempston() bAND 16)>0
 sound(3)
 fadeout()
 cls
@@ -175,27 +182,27 @@ for n=0 to maxtanks
 		y=tanks(n,2)
 
 		if n=0
-			if lastkey=kr or (kempston() bAND 1)>0
+			if lastkey=kr or (kempstonpresent=1 and kempston() bAND 1)>0
 				'    ************  P
 				tanks(0,3)=1
 				x=tanks(0,1)+tanks(0,4)
 				sound(4)
-			else if lastkey=kl or (kempston() bAND 2)>0 
+			else if lastkey=kl or (kempstonpresent=1 and kempston() bAND 2)>0 
 				'    ************  O
 				tanks(0,3)=3
 				x=tanks(0,1)-tanks(0,4)
 				sound(4)
-			else if lastkey=kd or (kempston() bAND 4)>0
+			else if lastkey=kd or (kempstonpresent=1 and kempston() bAND 4)>0
 				'    ************  Q
 				tanks(0,3)=2
 				y=tanks(0,2)+tanks(0,4)
 				sound(4)
-			else if lastkey=ku or (kempston() bAND 8)>0
+			else if lastkey=ku or (kempstonpresent=1 and kempston() bAND 8)>0
 				'    ************  A
 				tanks(0,3)=0
 				y=tanks(0,2)-tanks(0,4)
 				sound(4)
-			else if (lastkey=kf  or (kempston() bAND 16)>0) and tanks(0,5)>5
+			else if (lastkey=kf  or (kempstonpresent=1 and kempston() bAND 16)>0) and tanks(0,5)>5
 				'    ************  SPACE
 				d=firstfreeshoot()
 				
